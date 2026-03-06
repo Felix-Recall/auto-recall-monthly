@@ -1,0 +1,87 @@
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>汽车召回月度看板</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body{padding:1rem;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    #chart1,#chart2{height:420px}
+    table{font-size:14px}
+    .muted{color:#666;font-size:12px}
+  </style>
+</head>
+<body>
+<main class="container">
+  <h1>汽车召回月度看板</h1>
+  <p class="muted">数据源：<a href="https://www.samr.gov.cn/zlfzj/qxcpzh/index.html" target="_blank">国家市场监督管理总局召回专栏</a>，
+  备份：<a href="https://www.aqsiqauto.com/recall/index/13.html" target="_blank">中国汽车质量网</a>。
+  </p>
+  <div class="grid">
+    <article>
+      <h5>品牌召回数量 TOP10</h5>
+      <div id="chart1"></div>
+    </article>
+    <article>
+      <h5>缺陷关键词词频</h5>
+      <div id="chart2"></div>
+    </article>
+  </div>
+  <article>
+    <h5>当月召回明细</h5>
+    <table>
+      <thead>
+        <tr>
+          <th>品牌</th><th>车型</th><th>数量</th><th>生产起</th><th>生产止</th><th>缺陷</th><th>措施</th><th>来源</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </article>
+  <p class="muted">以官方发布为准。页面自动读取 <code>docs/data/latest.json</code>。</p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script>
+async function load(){
+  const res = await fetch('./data/latest.json?_=' + Date.now());
+  const data = await res.json();
+  // 表格
+  const tbody = document.getElementById('rows');
+  tbody.innerHTML = data.map(r=>`<tr>
+    <td>${r.brand||''}</td>
+    <td>${r.model||''}</td>
+    <td>${r.quantity||''}</td>
+    <td>${r.start_date||''}</td>
+    <td>${r.end_date||''}</td>
+    <td>${(r.defect_desc||'').slice(0,40)}</td>
+    <td>${(r.remedy||'').slice(0,40)}</td>
+    <td><a href="${r.source_url}" target="_blank">${r.source_name||''}</a></td>
+  </tr>`).join('');
+  // 品牌 TOP10
+  const brandAgg = Object.entries(data.reduce((acc,r)=>{acc[r.brand||'未知']= (acc[r.brand||'未知']||0) + (r.quantity||0);return acc;},{}))
+    .sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const c1 = echarts.init(document.getElementById('chart1'));
+  c1.setOption({
+    tooltip:{},
+    xAxis:{type:'category',data:brandAgg.map(x=>x[0])},
+    yAxis:{type:'value'},
+    series:[{type:'bar',data:brandAgg.map(x=>x[1])}]
+  });
+  // 缺陷关键词
+  const kw = ['电池','气囊','制动','软件','燃油','转向','悬架','传动'];
+  const kwAgg = kw.map(k=>({name:k, value:data.filter(r=> (r.defect_desc||'').includes(k)).length}));
+  const c2 = echarts.init(document.getElementById('chart2'));
+  c2.setOption({
+    tooltip:{},
+    xAxis:{type:'category',data:kwAgg.map(x=>x.name)},
+    yAxis:{type:'value'},
+    series:[{type:'line',data:kwAgg.map(x=>x.value)}]
+  });
+}
+load();
+</script>
+</body>
+</html>
